@@ -1,0 +1,54 @@
+name: DEV Auto Daily Usage Report 
+
+on:
+  # schedule:
+  #   - cron: "41 1 * * *"
+   workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@v4
+        with:
+          ref: development
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python Requirements
+        run: pip install -r scripts/python/githubAutomation/requirements.txt
+
+      - name: Run Report Script
+        run: python scripts/python/githubAutomation/report_parent.py
+        env:
+          REPORT_TYPE: daily
+          MODE: all
+          EMAILS: ""
+
+          RECIPIENTS_EMAILS: ${{ secrets.DEV_RECIPIENTS_EMAILS }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SES_FROM_EMAIL: ${{ secrets.SES_FROM_EMAIL }}
+
+          HEADER_NAME: ${{ secrets.DEV_WAF_HEADER_NAME }}
+          HEADER_VALUE: ${{ secrets.DEV_WAF_HEADER_VALUE }}
+
+          BASE_URL: ${{ secrets.DEV_BASE_URL }}
+          ADMIN_USERNAME: ${{ secrets.DEV_ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.DEV_ADMIN_PASSWORD }}
+
+      - name: Upload logs
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs
+          path: error.log
