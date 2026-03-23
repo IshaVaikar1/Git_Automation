@@ -1,0 +1,128 @@
+name: DEV Manual Usage Report Generation
+
+on:
+ 
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch to build from"
+        required: true
+        type: choice
+        options:
+          - main
+          - development
+        
+
+      mode:
+        description: "Select sending mode"
+        required: true
+        type: choice
+        options:
+          - custom
+          - all
+        default: "all"
+
+      emails:
+        description: "Comma-separated emails (only for custom)"
+        required: false
+        type: string
+
+      startDate:
+        description: "Start date (YYYY-MM-DD)"
+        required: false
+        type: string
+      
+      endDate:
+        description: "End date (YYYY-MM-DD)"
+        required: false
+        type: string
+        
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    env:
+      START_DATE: ${{ github.event.inputs.startDate }}
+      END_DATE: ${{ github.event.inputs.endDate }}
+      MODE: ${{ github.event.inputs.mode }}
+      EMAILS: ${{ github.event.inputs.emails }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate input dates (ISO format)
+        run: |
+          set -e
+          
+          echo "START_DATE='$START_DATE'"
+          echo "END_DATE='$END_DATE'"
+          
+          validate_date() {
+            date -d "$1" +"%Y-%m-%d" >/dev/null 2>&1
+          }
+          if [ -n "$START_DATE" ]; then
+          validate_date "$START_DATE" || {
+              echo "START_DATE must be valid ISO YYYY-MM-DD. Got: $START_DATE"
+              exit 1
+            }
+          fi
+          
+          if [ -n "$END_DATE" ]; then
+            validate_date "$END_DATE" || {
+              echo "END_DATE must be valid ISO YYYY-MM-DD. Got: $END_DATE"
+              exit 1
+            }
+          fi
+          
+          if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
+            if [ "$START_DATE" \> "$END_DATE" ]; then
+              echo "START_DATE cannot be after END_DATE"
+              exit 1
+            fi
+          fi
+
+
+
+      - name: Install Python Requirements
+        run: pip install -r scripts/python/githubAutomation/requirements.txt
+
+      - name: Run Report Script
+        run: python scripts/python/githubAutomation/report_parent.py
+        env:
+          REPORT_TYPE: daily     
+          RECIPIENTS_EMAILS: ${{ secrets.DEV_RECIPIENTS_EMAILS }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          START_DATE: ${{ github.event.inputs.startDate }}
+          END_DATE: ${{ github.event.inputs.endDate }}
+
+          MODE: ${{ github.event.inputs.mode }}
+          EMAILS: ${{ github.event.inputs.emails }}
+
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          SES_FROM_EMAIL: ${{ secrets.SES_FROM_EMAIL }}
+          HEADER_NAME: ${{ secrets.DEV_WAF_HEADER_NAME}}
+          HEADER_VALUE: ${{ secrets.DEV_WAF_HEADER_VALUE}}
+
+          # Add as many API_X_URL as you need:
+          BASE_URL: ${{ secrets.DEV_BASE_URL}}
+          ADMIN_USERNAME: ${{ secrets.DEV_ADMIN_USERNAME}}
+          ADMIN_PASSWORD: ${{ secrets.DEV_ADMIN_PASSWORD}}
+          
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs
+          path: error.log
