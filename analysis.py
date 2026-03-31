@@ -25,6 +25,7 @@ def analyze_data(api_results):
         "summarized_bsa_requests": 0,
     }
 
+
     for row in clean_records:
         files = row.get("files") or []
         file_count = len(files)
