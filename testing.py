@@ -1,3 +1,4 @@
+# testing.py (clean version of report_parent)
 
 # report_parent.py
 import os
@@ -12,6 +13,8 @@ from error_handler import init_logger
 from success_body import success_message
 from failure_body import failure_message
 from admin_body import  admin_failure_message, workflow_failure_message
+from analysis import analyze_data
+
 
 
 # ---- ENV VARIABLES (GitHub Secrets / Workflow Inputs) ----
@@ -30,15 +33,15 @@ SMTP_USER = "ishavaikar29@gmail.com"
 SMTP_PASS = "ayxfjpltgdtkwroh"
 
 ADMIN_EMAIL = "ishavaikar29@gmail.com"
-RECIPIENTS_EMAILS = "ishavaikar29@gmail.com, mahesh.sagare@creditos.in"
-# RECIPIENTS_EMAILS = "ishavaikar29@gmail.com"
+# RECIPIENTS_EMAILS = "ishavaikar29@gmail.com,makarand.joshi@creditos.in,aditya.ponkshe@creditos.in"
+RECIPIENTS_EMAILS = "ishavaikar29@gmail.com"
 
 MODE = "custom"
-# EMAILS = "ishavaikar29@gmail.com,mahesh.sagare@creditos.in"
 EMAILS = "ishavaikar29@gmail.com"
+# EMAILS = "ishavaikar29@gmail.com,makarand.joshi@creditos.in,aditya.ponkshe@creditos.in"
 
 START_DATE = "2026-03-01"
-END_DATE = "2026-03-03"
+END_DATE = "2026-03-06"
 os.environ["START_DATE"] = START_DATE
 os.environ["END_DATE"] = END_DATE
 
@@ -372,6 +375,7 @@ def main():
         os.environ["END_DATE"] = endDate
         # START_DATE= startDate
         # END_DATE = endDate
+        analysis_result = None
 
 
 
@@ -380,7 +384,9 @@ def main():
             api_results = execute_api_flow(load_dynamic_api_flow())
 
         except Exception as e:
+            summary = summarize_log_error()
 
+            # ---- Send detailed error to admin ----
             send_email(
                 SMTP_HOST,
                 SMTP_PORT,
@@ -389,6 +395,7 @@ def main():
                 [ADMIN_EMAIL],
                 "REPORT FAILED",
                 admin_failure_message([("api_flow", str(e))], timestamp, "Failure"),
+                analysis_result,
                 attachments=["error.log"],
             )
 
@@ -400,14 +407,62 @@ def main():
                 recipients,
                 f"BSA Report Failed - {timestamp}",
                 failure_message(timestamp),
+                analysis_result,
                 attachments=None,
             )
 
             return
+        data_list = []
+        excel_payload = {}
+
+        for resp in api_results.values():
+
+            # CASE 1: dict response
+            if isinstance(resp, dict):
+                data_block = resp.get("data")
+
+                if isinstance(data_block, dict):
+                    inner_data = data_block.get("data")
+
+                    if isinstance(inner_data, list):
+                        data_list.extend(inner_data)
+
+            # CASE 2: already a list
+            elif isinstance(resp, list):
+                data_list.extend(resp)
+                    # excel_payload["data"] = {"data": inner_data}
+
+        # ---- correct call ----
+        if data_list:
+            analysis_result = analyze_data({"usageReport": {"data": {"data": data_list}}})
+            
+        else:
+            analysis_result = {
+                "system_health": {
+                    "total": 0,
+                    "Completed": 0,
+                    "Failed": 0,
+                    "submitted": 0,
+                    "success_rate": 0,
+                    "failure_rate": 0
+                },
+                "failure_intelligence": {},
+                "bank_distribution": {},
+                "time_pattern": {},
+                "file_type_analysis": {
+                    "bank_requests": 0,
+                    "summarized_bsa_requests": 0
+                }
+            }
+
+        if not excel_payload:
+            excel_payload = api_results
+
+        # ---- ANALYSIS ----
 
         excel_path = build_excel(api_results , excel_filename)
 
-        body = success_message(report_type, startDate, endDate)
+        body = success_message(report_type, startDate, endDate,analysis_result)
 
         send_email(
             SMTP_HOST,
@@ -417,6 +472,7 @@ def main():
             recipients,
             subject,
             body,
+            analysis_result,
             attachments=[excel_path],
         )
 
@@ -436,6 +492,7 @@ def main():
             [ADMIN_EMAIL],
             "REPORT FAILED (ADMIN ALERT)",
             workflow_failure_message([("workflow", str(e))], timestamp, summary),
+            analysis_result,
             attachments=["error.log"],
         )
 

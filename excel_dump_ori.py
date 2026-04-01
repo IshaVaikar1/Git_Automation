@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.styles import Font, PatternFill
 
 FORBIDDEN = {
     "STATEMENT_OF_INCOME",
@@ -14,8 +14,6 @@ FORBIDDEN = {
     "Makarand Bank",
     "FSA"
 }
-
-
 def utc_to_ist(ts):
     if not ts:
         return ts
@@ -26,12 +24,10 @@ def utc_to_ist(ts):
     except Exception:
         return ts
 
-
 def style_header(row):
     for cell in row:
         cell.font = Font(bold=True)
         cell.fill = PatternFill(start_color="FFC000", fill_type="solid")
-        cell.alignment = Alignment(horizontal="center", vertical="center")
 
 
 def autosize(ws):
@@ -44,10 +40,14 @@ def autosize(ws):
 
 
 def contains_forbidden(values):
+    """
+    Checks if any value contains forbidden keywords.
+    """
     for v in values:
         if not v:
             continue
         text = str(v).upper()
+
         for bad in FORBIDDEN:
             if bad.upper() in text:
                 return True
@@ -57,7 +57,10 @@ def contains_forbidden(values):
 def build_excel(payload: dict, filename="usage_report.xlsx"):
 
     usage_report_obj = payload.get("usageReport", {})
-    rows = usage_report_obj.get("data", {}).get("data", [])
+    rows = (
+        usage_report_obj.get("data", {})
+               .get("data", [])
+    )
 
     if not isinstance(rows, list):
         raise ValueError("Invalid payload format: data.data must be a list")
@@ -83,8 +86,6 @@ def build_excel(payload: dict, filename="usage_report.xlsx"):
     ws.append(columns)
     style_header(ws[1])
 
-    current_row = 2  # Start after header
-
     for req in rows:
         request_values = [
             req.get("bankName", ""),
@@ -93,19 +94,13 @@ def build_excel(payload: dict, filename="usage_report.xlsx"):
 
         if req.get("inputDocumentType") in FORBIDDEN:
             continue
-
         files = req.get("files", [])
-        start_row = current_row
 
-        # No files case
         if not files:
-            row_values = request_values + [""] * 9
-            if not contains_forbidden(row_values):
+            row_values = request_values + [""] * 7
+            if not contains_forbidden(row_values):     
                 ws.append(row_values)
-                current_row += 1
             continue
-
-        valid_file_rows = []
 
         for f in files:
             file_values = [
@@ -125,42 +120,7 @@ def build_excel(payload: dict, filename="usage_report.xlsx"):
             if contains_forbidden(full_row):
                 continue
 
-            valid_file_rows.append(file_values)
-
-        if not valid_file_rows:
-            continue
-
-        # Write rows
-        for i, file_values in enumerate(valid_file_rows):
-            if i == 0:
-                ws.append(request_values + file_values)
-            else:
-                ws.append(["", ""] + file_values)
-            current_row += 1
-
-        end_row = current_row - 1
-
-        # Merge request-level columns
-        if end_row > start_row:
-            for col in [1, 2]:  # bank_name, tracking_id
-                ws.merge_cells(
-                    start_row=start_row,
-                    end_row=end_row,
-                    start_column=col,
-                    end_column=col
-                )
-
-                cell = ws.cell(row=start_row, column=col)
-                cell.alignment = Alignment(
-                    horizontal="center",
-                    vertical="center",
-                    wrap_text=True
-                )
-
-    # Apply wrap text globally
-    for row in ws.iter_rows():
-        for cell in row:
-            cell.alignment = Alignment(wrap_text=True)
+            ws.append(full_row)
 
     autosize(ws)
     wb.save(filename)

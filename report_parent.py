@@ -11,7 +11,7 @@ from error_handler import init_logger
 from success_body import success_message
 from failure_body import failure_message
 from admin_body import admin_failure_message, workflow_failure_message
-
+from analysis import analyze_data
 
 # ---- ENV VARIABLES (GitHub Secrets / Workflow Inputs) ----
 BASE_URL = os.getenv("BASE_URL")
@@ -322,6 +322,7 @@ def main():
 
         os.environ["START_DATE"] = startDate
         os.environ["END_DATE"] = endDate
+        analysis_result = {}
 
 
         try:
@@ -338,6 +339,7 @@ def main():
                 [ADMIN_EMAIL],
                 "REPORT FAILED",
                 admin_failure_message([("api_flow", str(e))], timestamp, summary),
+                analysis_result,
                 attachments=["error.log"],
             )
 
@@ -349,25 +351,39 @@ def main():
                 recipients,
                 f"BSA Report Failed - {timestamp}",
                 failure_message(timestamp),
+                analysis_result,
                 attachments=None,
             )
             return
         excel_payload = {}
+        data_list = []
 
-        for resp in api_results.items():
+        for resp in api_results.values():
             if isinstance(resp, dict) and isinstance(resp.get("data"), dict):
                 # Node API structure: { message, data: { count, data: [...] } }
                 inner_data = resp["data"].get("data")
                 if isinstance(inner_data, list):
+                    data_list = inner_data
                     excel_payload["data"] = {"data": inner_data}
-                    break
+                    data_list.extend(inner_data)
+        if data_list:
+            analysis_result = analyze_data(data_list)
+        else:
+            analysis_result = {
+                "total": 0,
+                "success": 0,
+                "failed": 0,
+                "success_rate": 0,
+                "failure_reasons": {},
+                "bank_stats": {}
+            }
 
-                # Fallback to original behavior if nothing matched
+        # Fallback to original behavior if nothing matched
         if not excel_payload:
             excel_payload = api_results
 
 
-        excel_path = build_excel(api_results , excel_filename)
+        excel_path = build_excel(excel_payload, excel_filename)
 
         body = success_message(report_type, startDate, endDate)
 
@@ -379,6 +395,7 @@ def main():
             recipients,
             subject,
             body,
+            analysis_result,
             attachments=[excel_path],
         )
 
@@ -398,6 +415,7 @@ def main():
             [ADMIN_EMAIL],
             "REPORT FAILED (ADMIN ALERT)",
             workflow_failure_message([("workflow", str(e))], timestamp, summary),
+            analysis_result,
             attachments=["error.log"],
         )
 
