@@ -12,6 +12,8 @@ def analyze_data(api_results):
 
     total = len(clean_records)
 
+    #just checking commit 
+
     completed = 0
     failed = 0
     submitted = 0
