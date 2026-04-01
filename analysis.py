@@ -1,18 +1,23 @@
 from collections import defaultdict
 from datetime import datetime
 
+
 def analyze_data(api_results):
     records = api_results.get("usageReport", {}).get("data", {}).get("data", [])
 
-    # ---- Clean records (keep valid tracking ids only) ----
-    clean_records = [
-        r for r in records
-        if r.get("trackingId") or r.get("tracking_id")
-    ]
+    # ---- Filter: only BSA-related records (skip FSA/RECEIVED with no files) ----
+    clean_records = []
+    for r in records:
+        tracking_id = r.get("trackingId") or r.get("tracking_id")
+        if not tracking_id:
+            continue
+        # Skip FSA uploads (not BSA)
+        if r.get("inputDocumentType") in {"FSA", "STATEMENT_OF_INCOME", "ITR",
+                                           "BALANCE_SHEET", "PROFIT_AND_LOSS"}:
+            continue
+        clean_records.append(r)
 
     total = len(clean_records)
-
-    #just checking commit 
 
     completed = 0
     failed = 0
@@ -27,29 +32,34 @@ def analyze_data(api_results):
         "summarized_bsa_requests": 0,
     }
 
+    FORBIDDEN_BANKS = {
+        "citizens cooperative bank", "ab bank", "parner coop bank",
+        "aditya bank", "makarand bank"
+    }
+
     for row in clean_records:
         files = row.get("files") or []
         file_count = len(files)
 
-        status_raw = str(row.get("status") or "").strip().lower()
-        message = str(row.get("messageDetails") or "").strip().lower()
+        status_raw = str(row.get("status") or "").strip()
+        message = str(row.get("messageDetails") or "").strip()
         bank = str(row.get("bankName") or "").strip()
 
-        # ---- Skip invalid banks ONLY for bank stats ----
-        valid_bank = True
-        if not bank or bank.lower() in ["null", "none"]:
-            valid_bank = False
+        # ---- Robust status detection (case-aware, matches real API values) ----
+        status_lower = status_raw.lower()
+        message_lower = message.lower()
 
-        # ---- Robust status detection ----
         is_completed = (
-            status_raw in ["completed", "success"]
-            or message == "success"
+            status_lower in {"completed"}
+            or message_lower == "success"
         )
 
         is_failed = (
-            status_raw in ["failed", "error"]
-            or "fail" in message
+            status_lower in {"failed"}
+            or "fail" in status_lower
         )
+
+        is_submitted = status_lower in {"submitted", "received", "processing"}
 
         # ---- System Health ----
         if is_completed:
@@ -59,19 +69,19 @@ def analyze_data(api_results):
         else:
             submitted += 1
 
-        # ---- Bank Stats (only if valid bank) ----
+        # ---- Bank Stats (skip forbidden / blank banks) ----
+        valid_bank = bank and bank.lower() not in {"null", "none"} and \
+                     bank.lower() not in FORBIDDEN_BANKS
         if valid_bank:
             bank_stats[bank]["total"] += 1
-
             if is_completed:
                 bank_stats[bank]["success"] += 1
             elif is_failed:
                 bank_stats[bank]["failed"] += 1
 
-        # ---- Failure Intelligence ----
+        # ---- Failure Intelligence (from file-level messages) ----
         if is_failed:
             reason = "Unknown"
-
             if files:
                 file_obj = files[0] or {}
                 reason = (
@@ -80,21 +90,28 @@ def analyze_data(api_results):
                     or row.get("messageDetails")
                     or "Unknown"
                 )
-
-            failure_reasons[reason] += 1
+                # Normalize duplicates
+                if reason and reason.lower() in {"failed", "success", ""}:
+                    reason = row.get("messageDetails") or "Unknown"
+            failure_reasons[str(reason)] += 1
 
         # ---- File Type Analysis (request level) ----
-        if file_count == 1:
-            file_type_analysis["bank_requests"] += 1
-        elif file_count > 1:
-            file_type_analysis["summarized_bsa_requests"] += 1
+        bsa_files = [f for f in files if f.get("documentType") == "BANK"]
+        summ_files = [f for f in files if f.get("documentType") == "SUMMARIZED_BSA"]
 
-        # ---- Time Pattern ----
+        if summ_files:
+            file_type_analysis["summarized_bsa_requests"] += 1
+        elif bsa_files:
+            file_type_analysis["bank_requests"] += 1
+
+        # ---- Time Pattern (IST offset +5:30) ----
         created_at = row.get("createdAt") or row.get("created_at")
         if created_at:
             try:
                 dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                hourly_pattern[dt.hour] += 1
+                ist_hour = (dt.hour + 5) % 24 + (1 if dt.minute >= 30 else 0)
+                ist_hour = ist_hour % 24
+                hourly_pattern[ist_hour] += 1
             except Exception:
                 pass
 
