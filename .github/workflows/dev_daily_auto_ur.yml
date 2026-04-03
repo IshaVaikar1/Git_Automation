@@ -1,27 +1,29 @@
 name: DEV Auto Daily Usage Report 
 
 on:
-  # schedule:
-  #   - cron: "41 1 * * *"
-   workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
 
     steps:
-      # - name: Checkout development branch
-      #   uses: actions/checkout@v4
-      #   with:
-      #     ref: development
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      
+      - name: Debug files
+        run: |
+          pwd
+          ls -la
+
       - name: Install Python Requirements
-        # run: pip install -r scripts/python/githubAutomation/requirements.txt
         run: pip install -r requirements.txt
 
       - name: Run Report Script
