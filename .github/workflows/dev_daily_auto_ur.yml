@@ -25,7 +25,6 @@ jobs:
           ls -la
 
       - name: Install Python Requirements
-        # run: pip install -r scripts/python/githubAutomation/requirements.txt
         run: pip install -r requirements.txt
 
       - name: Run Report Script
