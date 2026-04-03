@@ -111,6 +111,9 @@ def summarize_log_error():
         if "Token" in log and "WARNING" in log:
             return "Token missing in login API response."
 
+        if "503" in log or "Service Unavailable" in log:
+            return "API server temporarily unavailable — 503 Service Unavailable."
+
         return "Unexpected workflow failure. Check error.log for details."
 
     except Exception:
@@ -236,29 +239,30 @@ def execute_api_flow(api_flow):
     return results
 def resolve_date_range():
     """
-    Resolves start_date and end_date based on REPORT_TYPE.
-    Supports only: daily, weekly
+    Resolves start_date, end_date, and report_type.
+    - If user provides START_DATE + END_DATE → report_type = "range"
+    - Otherwise uses REPORT_TYPE secret to compute dates
     """
 
-    report_type = REPORT_TYPE.lower()
+    report_type = (REPORT_TYPE or "daily").lower()
 
-    # If explicitly provided, respect them
+    # If explicitly provided, it's a custom range
     startDate = os.getenv("START_DATE")
     endDate = os.getenv("END_DATE")
 
     if startDate and endDate:
-        return startDate, endDate
+        return startDate, endDate, "range"
 
     yesterday = date.today() - timedelta(days=1)
 
     if report_type == "daily":
         d = yesterday
-        return d.isoformat(), d.isoformat()
+        return d.isoformat(), d.isoformat(), "daily"
 
     if report_type == "weekly":
         end = yesterday
         start = yesterday - timedelta(days=6)
-        return start.isoformat(), end.isoformat()
+        return start.isoformat(), end.isoformat(), "weekly"
 
     raise ValueError("Only daily and weekly report types are supported")
 
@@ -311,13 +315,10 @@ def main():
 
         recipients = pick_recipients(all_recipients, MODE, EMAILS)
     
-        startDate, endDate = resolve_date_range()
-
-        if startDate != endDate:
-            report_type = "range"
-        else:
-            report_type = (REPORT_TYPE or "daily").lower()
+        startDate, endDate, report_type = resolve_date_range()
+        report_period = startDate if startDate == endDate else f"{startDate} to {endDate}"
         subject = build_subject(report_type, startDate, endDate)
+        dashboard_filename = subject.replace(":", "").replace(" ", "_") + ".html"
         excel_filename = subject.replace(":", "").replace(" ", "_") + ".xlsx"
 
         os.environ["START_DATE"] = startDate
@@ -349,43 +350,49 @@ def main():
                 SMTP_USER,
                 SMTP_PASS,
                 recipients,
-                f"BSA Report Failed - {timestamp}",
-                failure_message(timestamp),
+                f"BSA Report Failed - {report_period}",
+                failure_message(report_period),
                 analysis_result,
                 attachments=None,
             )
             return
-        excel_payload = {}
         data_list = []
 
         for resp in api_results.values():
-            if isinstance(resp, dict) and isinstance(resp.get("data"), dict):
-                # Node API structure: { message, data: { count, data: [...] } }
-                inner_data = resp["data"].get("data")
-                if isinstance(inner_data, list):
-                    data_list = inner_data
-                    excel_payload["data"] = {"data": inner_data}
-                    data_list.extend(inner_data)
+            # CASE 1: dict response
+            if isinstance(resp, dict):
+                data_block = resp.get("data")
+                if isinstance(data_block, dict):
+                    inner_data = data_block.get("data")
+                    if isinstance(inner_data, list):
+                        data_list.extend(inner_data)
+
+            # CASE 2: already a list
+            elif isinstance(resp, list):
+                data_list.extend(resp)
+
         if data_list:
-            analysis_result = analyze_data(data_list)
+            analysis_result = analyze_data({"usageReport": {"data": {"data": data_list}}})
         else:
             analysis_result = {
                 "total": 0,
                 "success": 0,
                 "failed": 0,
+                "submitted": 0,
                 "success_rate": 0,
-                "failure_reasons": {},
-                "bank_stats": {}
+                "failure_rate": 0,
+                "failure_intelligence": {},
+                "bank_distribution": {},
+                "file_type_analysis": {},
+                "failed_records": [],
+                "day_wise_breakdown": {},
+                "action_items": [],
+                "time_pattern": {},
             }
 
-        # Fallback to original behavior if nothing matched
-        if not excel_payload:
-            excel_payload = api_results
+        excel_path = build_excel(api_results, excel_filename)
 
-
-        excel_path = build_excel(excel_payload, excel_filename)
-
-        body = success_message(report_type, startDate, endDate)
+        body = success_message(report_type, startDate, endDate, analysis_result)
 
         send_email(
             SMTP_HOST,

@@ -8,9 +8,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      
-      - name: Checkout code
-        uses: actions/checkout@v4
+      # - name: Checkout development branch
+      #   uses: actions/checkout@v4
+      #   with:
+      #     ref: development
 
       - name: Setup Python
         uses: actions/setup-python@v5

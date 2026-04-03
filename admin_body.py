@@ -45,8 +45,8 @@ def admin_failure_message(failures, timestamp, summary=""):
 
             <div style="margin-top:16px; background:#fffbeb; border-left:3px solid #f59e0b; padding:10px 14px; border-radius:0 6px 6px 0;">
                 <span style="font-size:12px; color:#92400e;">
-                    The error.log file is attached to this email for full stack trace details.
-                    Excel report was <strong>not generated</strong>.
+                    The error.log file is attached for full stack trace details.
+                    Report data may be <strong>incomplete</strong>.
                 </span>
             </div>
 
