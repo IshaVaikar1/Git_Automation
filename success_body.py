@@ -34,37 +34,28 @@ def success_message(report_type, start_date, end_date, analysis=None):
         success_rate = sh.get("success_rate", 0)
         failure_rate = sh.get("failure_rate", 0)
 
-        # ---- Status badge ----
-        if failure_rate == 0:
-            status_color = "#22c55e"
-            status_label = "All Systems Healthy"
-            status_icon = "✓"
-        elif failure_rate < 10:
-            status_color = "#f59e0b"
-            status_label = "Minor Issues"
-            status_icon = "⚠"
-        else:
-            status_color = "#ef4444"
-            status_label = "Attention Required"
-            status_icon = "✗"
+        # ---- Status badge removed for cleaner UI ----
+        status_color = "#64748b" # Default color for title elements if needed
+        status_label = ""
+        status_icon = ""
 
-        # ---- Summary cards (table-based for email compatibility) ----
+        # ---- Summary cards (table-based but responsive) ----
         cards_html = f"""
-        <table cellpadding="0" cellspacing="0" style="width:100%; border-collapse:separate; border-spacing:8px 0;">
+        <table cellpadding="0" cellspacing="0" class="metric-table" style="width:100%; border-collapse:separate; border-spacing:8px 0;">
         <tr>
-            <td style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:14px 16px; text-align:center; width:25%;">
+            <td class="metric-card" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:12px 10px; text-align:center; width:25%;">
                 <div style="font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Total</div>
                 <div style="font-size:24px; font-weight:700; color:#1e293b;">{total}</div>
             </td>
-            <td style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:14px 16px; text-align:center; width:25%;">
+            <td class="metric-card" style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px 10px; text-align:center; width:25%;">
                 <div style="font-size:11px; color:#16a34a; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Completed</div>
                 <div style="font-size:24px; font-weight:700; color:#15803d;">{completed}</div>
             </td>
-            <td style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:14px 16px; text-align:center; width:25%;">
+            <td class="metric-card" style="background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:12px 10px; text-align:center; width:25%;">
                 <div style="font-size:11px; color:#dc2626; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Failed</div>
                 <div style="font-size:24px; font-weight:700; color:#b91c1c;">{failed}</div>
             </td>
-            <td style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:14px 16px; text-align:center; width:25%;">
+            <td class="metric-card" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 10px; text-align:center; width:25%;">
                 <div style="font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Submitted</div>
                 <div style="font-size:24px; font-weight:700; color:#b45309;">{submitted}</div>
             </td>
@@ -97,7 +88,7 @@ def success_message(report_type, start_date, end_date, analysis=None):
             <table cellpadding="0" cellspacing="0" style="width:100%; margin-top:16px; border-collapse:separate; border-spacing:8px 0;">
             <tr>
                 <td style="background:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
-                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">Bank Requests</span>
+                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">Single Bank Requests</span>
                     <span style="font-size:18px; font-weight:700; color:#334155;">{bank_req}</span>
                 </td>
                 <td style="background:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
@@ -153,17 +144,12 @@ def success_message(report_type, start_date, end_date, analysis=None):
                     b_total = stats.get("total", 0)
                     b_ok = stats.get("success", 0)
                     b_fail = stats.get("failed", 0)
-                    b_rate = round((b_ok / b_total) * 100, 1) if b_total else 0
-                    rate_color = "#22c55e" if b_rate >= 90 else "#f59e0b" if b_rate >= 70 else "#ef4444"
                     bank_rows += f"""
                     <tr>
-                        <td style="padding:8px 12px; font-size:13px; color:#374151; border-bottom:1px solid #f9fafb;">{bank}</td>
+                        <td style="padding:8px 12px; font-size:13px; color:#374151; border-bottom:1px solid #f9fafb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;" title="{bank}">{bank}</td>
                         <td style="padding:8px 12px; font-size:13px; color:#374151; border-bottom:1px solid #f9fafb; text-align:center;">{b_total}</td>
                         <td style="padding:8px 12px; font-size:13px; color:#15803d; border-bottom:1px solid #f9fafb; text-align:center;">{b_ok}</td>
                         <td style="padding:8px 12px; font-size:13px; color:#b91c1c; border-bottom:1px solid #f9fafb; text-align:center;">{b_fail}</td>
-                        <td style="padding:8px 12px; border-bottom:1px solid #f9fafb; text-align:center;">
-                            <span style="font-size:12px; font-weight:600; color:{rate_color};">{b_rate}%</span>
-                        </td>
                     </tr>
                     """
 
@@ -177,9 +163,8 @@ def success_message(report_type, start_date, end_date, analysis=None):
                             <tr style="background:#f8fafc;">
                                 <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:left; font-weight:600;">Bank</th>
                                 <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Total</th>
-                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">✓ OK</th>
-                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">✗ Failed</th>
-                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Rate</th>
+                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Completed</th>
+                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Failed</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -266,10 +251,8 @@ def success_message(report_type, start_date, end_date, analysis=None):
             """
 
         dashboard_html = f"""
-        <!-- STATUS BADGE -->
-        <div style="display:inline-block; background:{status_color}1a; border:1px solid {status_color}40; border-radius:6px; padding:5px 12px; margin-bottom:16px;">
-            <span style="font-size:13px; font-weight:600; color:{status_color};">{status_icon} {status_label}</span>
-        </div>
+        <!-- STATUS BADGE REMOVED -->
+        <div style="margin-bottom:16px;"></div>
 
         <!-- METRIC CARDS -->
         {cards_html}
@@ -295,17 +278,33 @@ def success_message(report_type, start_date, end_date, analysis=None):
 
     return f"""<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @media only screen and (max-width: 600px) {{
+            .metric-table {{ width: 100% !important; border-spacing: 0 !important; }}
+            .metric-table tbody, .metric-table tr {{ display: block !important; width: 100% !important; }}
+            .metric-card {{ 
+                display: inline-block !important; 
+                width: 48% !important; 
+                margin-bottom: 10px !important; 
+                padding: 12px 10px !important;
+                vertical-align: top !important;
+                box-sizing: border-box !important;
+            }}
+            .metric-card:nth-child(even) {{ margin-left: 2% !important; }}
+        }}
+    </style>
+</head>
 <body style="margin:0; padding:0; background:#f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
 
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9; padding:24px 0;">
 <tr><td>
-<table width="640" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto;">
+<table width="640" align="center" cellpadding="0" cellspacing="0" style="margin:0 auto; background:#ffffff;">
 
     <!-- HEADER -->
     <tr>
         <td style="background:#0f172a; border-radius:12px 12px 0 0; padding:24px 32px;">
-            <div style="font-size:11px; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin-bottom:4px;">CreditOS Automation</div>
             <div style="font-size:20px; font-weight:700; color:#ffffff;">{title}</div>
             <div style="font-size:13px; color:#94a3b8; margin-top:4px;">Period: {period_label}</div>
         </td>
@@ -314,8 +313,6 @@ def success_message(report_type, start_date, end_date, analysis=None):
     <!-- BODY -->
     <tr>
         <td style="background:#ffffff; padding:28px 32px;">
-
-            <p style="font-size:14px; color:#374151; margin:0 0 20px 0;">Hi Team,</p>
 
             {dashboard_html}
 

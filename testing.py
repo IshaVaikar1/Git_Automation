@@ -48,7 +48,7 @@ END_DATE = ""
 os.environ["START_DATE"] = START_DATE
 os.environ["END_DATE"] = END_DATE
 
-REPORT_TYPE = "weekly"
+REPORT_TYPE = "daily"
 
 # BASE_URL = os.getenv("BASE_URL")
 
