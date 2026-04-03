@@ -6,7 +6,6 @@ from datetime import datetime, date, timedelta, timezone
 from api_client import call_api
 from api_config import API_FLOW_CONFIG
 from excel_builder import build_excel
-from dashboard_builder import build_dashboard
 from email_sender import send_email
 from error_handler import init_logger
 from success_body import success_message
@@ -357,17 +356,21 @@ def main():
                 attachments=None,
             )
             return
-        excel_payload = {}
         data_list = []
 
         for resp in api_results.values():
-            if isinstance(resp, dict) and isinstance(resp.get("data"), dict):
-                # Node API structure: { message, data: { count, data: [...] } }
-                inner_data = resp["data"].get("data")
-                if isinstance(inner_data, list):
-                    data_list = inner_data
-                    excel_payload["data"] = {"data": inner_data}
-                    data_list.extend(inner_data)
+            # CASE 1: dict response
+            if isinstance(resp, dict):
+                data_block = resp.get("data")
+                if isinstance(data_block, dict):
+                    inner_data = data_block.get("data")
+                    if isinstance(inner_data, list):
+                        data_list.extend(inner_data)
+
+            # CASE 2: already a list
+            elif isinstance(resp, list):
+                data_list.extend(resp)
+
         if data_list:
             analysis_result = analyze_data({"usageReport": {"data": {"data": data_list}}})
         else:
@@ -387,8 +390,7 @@ def main():
                 "time_pattern": {},
             }
 
-        dashboard_path = build_dashboard(data_list, report_type, startDate, endDate, dashboard_filename)
-        excel_path = build_excel(data_list, excel_filename)
+        excel_path = build_excel(api_results, excel_filename)
 
         body = success_message(report_type, startDate, endDate, analysis_result)
 
