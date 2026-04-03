@@ -1,9 +1,7 @@
 name: DEV Auto Daily Usage Report 
 
 on:
-  # schedule:
-  #   - cron: "41 1 * * *"
-   workflow_dispatch:
+  workflow_dispatch:
 
 jobs:
   run:
@@ -19,6 +17,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      
+      - name: Debug files
+        run: |
+          pwd
+          ls -la
 
       - name: Install Python Requirements
         # run: pip install -r scripts/python/githubAutomation/requirements.txt
