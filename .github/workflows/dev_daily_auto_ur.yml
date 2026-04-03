@@ -21,7 +21,8 @@ jobs:
           python-version: "3.11"
 
       - name: Install Python Requirements
-        run: pip install -r scripts/python/githubAutomation/requirements.txt
+        # run: pip install -r scripts/python/githubAutomation/requirements.txt
+        run: pip install -r requirements.txt
 
       - name: Run Report Script
         run: python scripts/python/githubAutomation/report_parent.py
