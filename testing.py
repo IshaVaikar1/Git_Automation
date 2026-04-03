@@ -7,7 +7,7 @@ from datetime import datetime, date, timedelta, timezone
 from api_client import call_api
 from api_config import API_FLOW_CONFIG
 from excel_builder import build_excel
-from dashboard_builder import build_dashboard
+# from dashboard_builder import build_dashboard
 # from email_sender import send_email
 from test_email import send_email 
 from error_handler import init_logger
@@ -448,7 +448,7 @@ def main():
             }
 
         # ---- DASHBOARD & EXCEL ----
-        dashboard_path = build_dashboard(data_list, report_type, startDate, endDate, dashboard_filename)
+        # dashboard_path = build_dashboard(data_list, report_type, startDate, endDate, dashboard_filename)
         excel_path = build_excel(api_results, excel_filename)
 
         body = success_message(report_type, startDate, endDate,analysis_result)
