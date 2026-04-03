@@ -22,10 +22,10 @@ jobs:
 
       - name: Install Python Requirements
         # run: pip install -r scripts/python/githubAutomation/requirements.txt
-        run: pip install -r requirements.txt
+        run: pip install -r .github/workflows/requirements.txt
 
       - name: Run Report Script
-        run: python scripts/python/githubAutomation/report_parent.py
+        run: python .github/workflows/report_parent.py
         env:
           REPORT_TYPE: daily
           MODE: all
