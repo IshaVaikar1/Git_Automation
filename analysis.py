@@ -7,6 +7,12 @@ def analyze_data(api_results):
 
     # ---- Filter: only BSA-related records (skip FSA/RECEIVED with no files) ----
     clean_records = []
+    
+    FORBIDDEN_BANKS = {
+        "citizens cooperative bank", "ab bank", "parner coop bank",
+        "aditya bank", "makarand bank", "model test 1"
+    }
+
     for r in records:
         tracking_id = r.get("trackingId") or r.get("tracking_id")
         if not tracking_id:
@@ -15,6 +21,11 @@ def analyze_data(api_results):
         if r.get("inputDocumentType") in {"FSA", "STATEMENT_OF_INCOME", "ITR",
                                            "BALANCE_SHEET", "PROFIT_AND_LOSS"}:
             continue
+        
+        bank_name = str(r.get("bankName") or "").strip().lower()
+        if bank_name in FORBIDDEN_BANKS:
+            continue
+
         clean_records.append(r)
 
     total = len(clean_records)
@@ -35,11 +46,6 @@ def analyze_data(api_results):
 
     # Track failed records for inline email display
     failed_records = []
-
-    FORBIDDEN_BANKS = {
-        "citizens cooperative bank", "ab bank", "parner coop bank",
-        "aditya bank", "makarand bank"
-    }
 
     for row in clean_records:
         files = row.get("files") or []
@@ -74,9 +80,8 @@ def analyze_data(api_results):
         else:
             submitted += 1
 
-        # ---- Bank Stats (skip forbidden / blank banks) ----
-        valid_bank = bank and bank.lower() not in {"null", "none"} and \
-                     bank.lower() not in FORBIDDEN_BANKS
+        # ---- Bank Stats (skip blank banks) ----
+        valid_bank = bank and bank.lower() not in {"null", "none"}
         if valid_bank:
             bank_stats[bank]["total"] += 1
             if is_completed:

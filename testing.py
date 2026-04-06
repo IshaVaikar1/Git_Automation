@@ -35,16 +35,17 @@ SMTP_PASS = "ayxfjpltgdtkwroh"
 
 ADMIN_EMAIL = "ishavaikar29@gmail.com"
 # RECIPIENTS_EMAILS = "ishavaikar29@gmail.com,makarand.joshi@creditos.in,aditya.ponkshe@creditos.in"
-RECIPIENTS_EMAILS = "ishavaikar29@gmail.com"
-
+# RECIPIENTS_EMAILS = "ishavaikar29@gmail.com,aditya.ponkshe@creditos.in"
+RECIPIENTS_EMAILS = "ishavaikar29@gmail.com,mahesh.sagare@creditos.in"
 MODE = "custom"
-EMAILS = "ishavaikar29@gmail.com"
+# EMAILS = "ishavaikar29@gmail.com,aditya.ponkshe@creditos.in"
+EMAILS = "ishavaikar29@gmail.com,mahesh.sagare@creditos.in"
 # EMAILS = "ishavaikar29@gmail.com,makarand.joshi@creditos.in,aditya.ponkshe@creditos.in"
 
-# START_DATE = "2026-03-01"
-# END_DATE = "2026-03-06"
-START_DATE =""
-END_DATE = ""
+START_DATE = "2026-03-01"
+END_DATE = "2026-03-06"
+# START_DATE =""
+# END_DATE = ""
 os.environ["START_DATE"] = START_DATE
 os.environ["END_DATE"] = END_DATE
 
@@ -390,7 +391,6 @@ def main():
                 [ADMIN_EMAIL],
                 "REPORT FAILED",
                 admin_failure_message([("api_flow", str(e))], timestamp, "Failure"),
-                analysis_result,
                 attachments=["error.log"],
             )
 
@@ -402,7 +402,6 @@ def main():
                 recipients,
                 f"BSA Report Failed - {report_period}",
                 failure_message(report_period),
-                analysis_result,
                 attachments=None,
             )
 
@@ -461,7 +460,6 @@ def main():
             recipients,
             subject,
             body,
-            analysis_result,
             attachments=[excel_path],
         )
 
@@ -481,7 +479,6 @@ def main():
             [ADMIN_EMAIL],
             "REPORT FAILED (ADMIN ALERT)",
             workflow_failure_message([("workflow", str(e))], timestamp, summary),
-            analysis_result,
             attachments=["error.log"],
         )
 

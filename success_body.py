@@ -56,7 +56,7 @@ def success_message(report_type, start_date, end_date, analysis=None):
                 <div style="font-size:24px; font-weight:700; color:#b91c1c;">{failed}</div>
             </td>
             <td class="metric-card" style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 10px; text-align:center; width:25%;">
-                <div style="font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Submitted</div>
+                <div style="font-size:11px; color:#d97706; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:4px;">Pending</div>
                 <div style="font-size:24px; font-weight:700; color:#b45309;">{submitted}</div>
             </td>
         </tr>
@@ -186,8 +186,6 @@ def success_message(report_type, start_date, end_date, analysis=None):
                 d_completed = stats.get("completed", 0)
                 d_failed = stats.get("failed", 0)
                 d_submitted = stats.get("submitted", 0)
-                d_rate = round((d_completed / d_total) * 100, 1) if d_total else 0
-                d_rate_color = "#22c55e" if d_rate >= 90 else "#f59e0b" if d_rate >= 70 else "#ef4444"
                 dw_rows += f"""
                 <tr>
                     <td style="padding:7px 10px; font-size:12px; color:#374151; border-bottom:1px solid #f1f5f9; font-weight:500;">{day}</td>
@@ -195,9 +193,6 @@ def success_message(report_type, start_date, end_date, analysis=None):
                     <td style="padding:7px 10px; font-size:12px; color:#15803d; border-bottom:1px solid #f1f5f9; text-align:center;">{d_completed}</td>
                     <td style="padding:7px 10px; font-size:12px; color:#b91c1c; border-bottom:1px solid #f1f5f9; text-align:center;">{d_failed}</td>
                     <td style="padding:7px 10px; font-size:12px; color:#b45309; border-bottom:1px solid #f1f5f9; text-align:center;">{d_submitted}</td>
-                    <td style="padding:7px 10px; border-bottom:1px solid #f1f5f9; text-align:center;">
-                        <span style="font-size:11px; font-weight:600; color:{d_rate_color};">{d_rate}%</span>
-                    </td>
                 </tr>
                 """
 
@@ -211,10 +206,9 @@ def success_message(report_type, start_date, end_date, analysis=None):
                         <tr style="background:#f8fafc;">
                             <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:left; font-weight:600;">Date</th>
                             <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Total</th>
-                            <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">✓</th>
-                            <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">✗</th>
+                            <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Completed</th>
+                            <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Failed</th>
                             <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Pending</th>
-                            <th style="padding:7px 10px; font-size:11px; color:#9ca3af; text-align:center; font-weight:600;">Rate</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -224,31 +218,47 @@ def success_message(report_type, start_date, end_date, analysis=None):
             </div>
             """
 
-        # ---- Action needed section (weekly reports only) ----
-        action_section = ""
-        if report_type == "weekly" and action_items:
-            action_html = ""
-            for item in action_items:
-                details_li = "".join(f'<li style="font-size:12px; color:#374151; margin-bottom:3px;">{d}</li>' for d in item["details"])
-                action_html += f"""
-                <div style="margin-bottom:12px;">
-                    <div style="font-size:12px; font-weight:600; color:#92400e; margin-bottom:4px;">{item['label']}</div>
-                    <ul style="margin:0; padding-left:18px;">
-                        {details_li}
-                    </ul>
+        # ---- Time Based Analysis (weekly reports only) ----
+        time_section = ""
+        time_pattern = analysis.get("time_pattern", {})
+        if report_type == "weekly" and time_pattern:
+            top_hours = sorted(time_pattern.items(), key=lambda x: -x[1])[:5]
+            if top_hours:
+                time_rows = ""
+                for hr, count in top_hours:
+                    ampm = "AM" if hr < 12 else "PM"
+                    hr12 = hr if hr <= 12 else hr - 12
+                    if hr12 == 0: hr12 = 12
+                    hr_label = f"{hr12:02d}:00 {ampm} - {hr12:02d}:59 {ampm}"
+                    
+                    time_rows += f"""
+                    <tr>
+                        <td style="padding:8px 12px; font-size:13px; color:#374151; border-bottom:1px solid #f9fafb;">{hr_label} <span style="font-size:11px; color:#9ca3af;">(IST)</span></td>
+                        <td style="padding:8px 12px; font-size:13px; font-weight:600; color:#1d4ed8; border-bottom:1px solid #f9fafb; text-align:right;">{count}</td>
+                    </tr>
+                    """
+
+                time_section = f"""
+                <div style="margin-top:24px;">
+                    <h3 style="font-size:13px; font-weight:600; color:#374151; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:0.5px;">
+                        Peak Activity Hours
+                    </h3>
+                    <table style="width:100%; border-collapse:collapse; background-image: linear-gradient(#ffffff, #ffffff); background-color:#ffffff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+                        <thead>
+                            <tr style="background-image: linear-gradient(#f8fafc, #f8fafc); background-color:#f8fafc;">
+                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:left; font-weight:600;">Time Window</th>
+                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:right; font-weight:600;">Total Requests</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {time_rows}
+                        </tbody>
+                    </table>
                 </div>
                 """
 
-            action_section = f"""
-            <div style="margin-top:24px;">
-                <h3 style="font-size:13px; font-weight:600; color:#92400e; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:0.5px;">
-                    ⚠ Action Needed
-                </h3>
-                <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:14px 18px;">
-                    {action_html}
-                </div>
-            </div>
-            """
+        # ---- Action needed section removed ----
+        action_section = ""
 
         dashboard_html = f"""
         <!-- STATUS BADGE REMOVED -->
@@ -271,9 +281,9 @@ def success_message(report_type, start_date, end_date, analysis=None):
 
         <!-- DAY-WISE (WEEKLY ONLY) -->
         {day_wise_section}
-
-        <!-- ACTION NEEDED (WEEKLY ONLY) -->
-        {action_section}
+        
+        <!-- TIME BASED ANALYSIS (WEEKLY ONLY) -->
+        {time_section}
         """
 
     return f"""<!DOCTYPE html>

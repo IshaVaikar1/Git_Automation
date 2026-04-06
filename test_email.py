@@ -12,7 +12,7 @@ logger = logging.getLogger("automation")
 
 
 # ---------------- EMAIL SENDER ---------------- #
-def send_email(host, port, user, password, recipients, subject, body, analysis=None, attachments=None):
+def send_email(host, port, user, password, recipients, subject, body, attachments=None):
 
     # Gmail default sender
     from_addr = user
