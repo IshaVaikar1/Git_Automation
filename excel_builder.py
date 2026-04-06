@@ -12,6 +12,7 @@ FORBIDDEN = {
     "Parner Coop Bank",
     "Aditya Bank",
     "Makarand Bank",
+    "Model Test 1",
     "FSA"
 }
 
