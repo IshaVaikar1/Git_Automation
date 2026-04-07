@@ -82,17 +82,18 @@ def success_message(report_type, start_date, end_date, analysis=None):
         # ---- File type split ----
         bank_req = fta.get("bank_requests", 0)
         summ_req = fta.get("summarized_bsa_requests", 0)
+        
         file_type_html = ""
         if bank_req or summ_req:
             file_type_html = f"""
             <table cellpadding="0" cellspacing="0" style="width:100%; margin-top:16px; border-collapse:separate; border-spacing:8px 0;">
             <tr>
-                <td style="background:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
-                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">Single Bank Requests</span>
+                <td style="background-image: linear-gradient(#f1f5f9, #f1f5f9); background-color:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
+                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">Single Bank Req</span>
                     <span style="font-size:18px; font-weight:700; color:#334155;">{bank_req}</span>
                 </td>
-                <td style="background:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
-                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">BSA Summarization</span>
+                <td style="background-image: linear-gradient(#f1f5f9, #f1f5f9); background-color:#f1f5f9; border-radius:6px; padding:10px 12px; width:50%;">
+                    <span style="font-size:11px; color:#64748b; display:block; margin-bottom:2px;">BSA Summarized</span>
                     <span style="font-size:18px; font-weight:700; color:#334155;">{summ_req}</span>
                 </td>
             </tr>
@@ -177,9 +178,9 @@ def success_message(report_type, start_date, end_date, analysis=None):
         # ---- Failed records section removed (moved to Digital Dashboard) ----
         failed_records_section = ""
 
-        # ---- Day-wise breakdown (weekly reports only) ----
+        # ---- Day-wise breakdown (weekly and custom reports) ----
         day_wise_section = ""
-        if report_type == "weekly" and day_wise:
+        if report_type in {"weekly", "custom"} and day_wise:
             dw_rows = ""
             for day, stats in sorted(day_wise.items()):
                 d_total = stats.get("total", 0)
@@ -218,44 +219,57 @@ def success_message(report_type, start_date, end_date, analysis=None):
             </div>
             """
 
-        # ---- Time Based Analysis (weekly reports only) ----
+        # ---- Time Based Analysis (all reports) ----
         time_section = ""
         time_pattern = analysis.get("time_pattern", {})
-        if report_type == "weekly" and time_pattern:
-            top_hours = sorted(time_pattern.items(), key=lambda x: -x[1])[:5]
-            if top_hours:
-                time_rows = ""
-                for hr, count in top_hours:
-                    ampm = "AM" if hr < 12 else "PM"
-                    hr12 = hr if hr <= 12 else hr - 12
-                    if hr12 == 0: hr12 = 12
-                    hr_label = f"{hr12:02d}:00 {ampm} - {hr12:02d}:59 {ampm}"
-                    
-                    time_rows += f"""
-                    <tr>
-                        <td style="padding:8px 12px; font-size:13px; color:#374151; border-bottom:1px solid #f9fafb;">{hr_label} <span style="font-size:11px; color:#9ca3af;">(IST)</span></td>
-                        <td style="padding:8px 12px; font-size:13px; font-weight:600; color:#1d4ed8; border-bottom:1px solid #f9fafb; text-align:right;">{count}</td>
-                    </tr>
-                    """
+        if time_pattern:
+            # -- VISUAL BAR CHART OPTION --
+            full_pattern = {h: time_pattern.get(h, 0) for h in range(24)}
+            max_count = max(full_pattern.values()) if full_pattern else 0
+            safe_max = max_count if max_count > 0 else 1
 
-                time_section = f"""
-                <div style="margin-top:24px;">
-                    <h3 style="font-size:13px; font-weight:600; color:#374151; margin:0 0 10px 0; text-transform:uppercase; letter-spacing:0.5px;">
-                        Peak Activity Hours
-                    </h3>
-                    <table style="width:100%; border-collapse:collapse; background-image: linear-gradient(#ffffff, #ffffff); background-color:#ffffff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
-                        <thead>
-                            <tr style="background-image: linear-gradient(#f8fafc, #f8fafc); background-color:#f8fafc;">
-                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:left; font-weight:600;">Time Window</th>
-                                <th style="padding:8px 12px; font-size:11px; color:#9ca3af; text-align:right; font-weight:600;">Total Requests</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {time_rows}
-                        </tbody>
-                    </table>
-                </div>
+            bars_html = ""
+            labels_html = ""
+            for hr in range(24):
+                count = full_pattern[hr]
+                height_px = int((count / safe_max) * 60) # Max bar height
+                
+                ampm = "A" if hr < 12 else "P"
+                hr12 = hr if hr <= 12 else hr - 12
+                if hr12 == 0: hr12 = 12
+                
+                label_display = f"{hr12}{ampm}" if hr % 3 == 0 else ""
+                count_label = f"{count}" if count > 0 else ""
+                
+                bars_html += f"""
+                <td valign="bottom" style="width:4.16%; padding:0 2px; text-align:center;">
+                    <div style="font-size:9px; color:#64748b; margin-bottom:2px;" title="{count} requests">{count_label}</div>
+                    <div style="height:{height_px}px; background-image: linear-gradient(#3b82f6, #2563eb); background-color:#3b82f6; width:100%; border-radius:3px 3px 0 0;" title="{hr12}{ampm}: {count} requests"></div>
+                </td>
                 """
+                labels_html += f"""
+                <td style="width:4.16%; text-align:center; padding-top:6px; font-size:10px; color:#9ca3af;" title="{hr12}{ampm}">
+                    {label_display}
+                </td>
+                """
+
+            time_section = f"""
+            <div style="margin-top:24px; background-image: linear-gradient(#ffffff, #ffffff); background-color:#ffffff; border:1px solid #e5e7eb; border-radius:8px; padding:16px;">
+                <h3 style="font-size:13px; font-weight:600; color:#374151; margin:0 0 16px 0; text-transform:uppercase; letter-spacing:0.5px;">
+                    Hourly Activity Profile (IST)
+                </h3>
+                <table cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; height:80px; margin-bottom:4px;">
+                    <tr>{bars_html}</tr>
+                </table>
+                <table cellpadding="0" cellspacing="0" style="width:100%; border-collapse:collapse; border-top:1px solid #e5e7eb;">
+                    <tr>{labels_html}</tr>
+                </table>
+            </div>
+            """
+            
+            # -- FOR OLD FORMAT RECOVERY (Commented Out) --
+            # top_hours = sorted(time_pattern.items(), key=lambda x: -x[1])[:5]
+            # ... old logic ...
 
         # ---- Action needed section removed ----
         action_section = ""
@@ -264,7 +278,7 @@ def success_message(report_type, start_date, end_date, analysis=None):
         <!-- STATUS BADGE REMOVED -->
         <div style="margin-bottom:16px;"></div>
 
-        <!-- METRIC CARDS -->
+        <!-- METRIC CARDS AND SYSTEM HEALTH -->
         {cards_html}
 
         <!-- RATE BAR -->
@@ -273,17 +287,17 @@ def success_message(report_type, start_date, end_date, analysis=None):
         <!-- FILE TYPE -->
         {file_type_html}
 
-        <!-- FAILURE BREAKDOWN -->
-        {failure_section}
-
         <!-- BANK DISTRIBUTION -->
         {bank_section}
 
-        <!-- DAY-WISE (WEEKLY ONLY) -->
+        <!-- DAY-WISE (WEEKLY / CUSTOM) -->
         {day_wise_section}
-        
-        <!-- TIME BASED ANALYSIS (WEEKLY ONLY) -->
+
+        <!-- TIME BASED ANALYSIS (ALL) -->
         {time_section}
+
+        <!-- FAILURE BREAKDOWN -->
+        {failure_section}
         """
 
     return f"""<!DOCTYPE html>

@@ -28,8 +28,7 @@ def analyze_data(api_results):
 
         clean_records.append(r)
 
-    total = len(clean_records)
-
+    total = 0
     completed = 0
     failed = 0
     submitted = 0
@@ -42,6 +41,7 @@ def analyze_data(api_results):
     file_type_analysis = {
         "bank_requests": 0,
         "summarized_bsa_requests": 0,
+        "banks_in_summarized_bsa": 0
     }
 
     # Track failed records for inline email display
@@ -54,98 +54,126 @@ def analyze_data(api_results):
         message = str(row.get("messageDetails") or "").strip()
         bank = str(row.get("bankName") or "").strip()
         tracking_id = row.get("trackingId") or row.get("tracking_id") or ""
+        created_at_root = row.get("createdAt") or row.get("created_at") or ""
 
-        # ---- Robust status detection ----
-        status_lower = status_raw.lower()
-        message_lower = message.lower()
+        req_status_lower = status_raw.lower()
 
-        is_completed = (
-            status_lower == "completed"
-            or (status_lower not in {"failed", "submitted", "received", "processing"}
-                and message_lower == "success")
-        )
+        items_to_process = []
 
-        is_failed = (
-            status_lower == "failed"
-            or "fail" in status_lower
-        )
-
-        is_submitted = status_lower in {"submitted", "received", "processing"}
-
-        # ---- System Health ----
-        if is_completed:
-            completed += 1
-        elif is_failed:
-            failed += 1
-        else:
-            submitted += 1
-
-        # ---- Bank Stats (skip blank banks) ----
-        valid_bank = bank and bank.lower() not in {"null", "none"}
-        if valid_bank:
-            bank_stats[bank]["total"] += 1
-            if is_completed:
-                bank_stats[bank]["success"] += 1
-            elif is_failed:
-                bank_stats[bank]["failed"] += 1
-
-        # ---- Failure Intelligence (from file-level messages) ----
-        failure_reason = ""
-        if is_failed:
-            reason = "Unknown"
-            if files:
-                file_obj = files[0] or {}
-                reason = (
-                    file_obj.get("statusMessage")
-                    or file_obj.get("fileStatus")
-                    or row.get("messageDetails")
-                    or "Unknown"
-                )
-                # Normalize duplicates
-                if reason and reason.lower() in {"failed", "success", ""}:
-                    reason = row.get("messageDetails") or "Unknown"
-            failure_reasons[str(reason)] += 1
-            failure_reason = str(reason)
-
-            # Collect failed record details
-            created_at = row.get("createdAt") or row.get("created_at") or ""
-            failed_records.append({
-                "tracking_id": tracking_id,
-                "bank_name": bank or "N/A",
-                "reason": failure_reason,
-                "timestamp": _utc_to_ist_str(created_at),
+        if not files:
+            # Ghost/empty request
+            items_to_process.append({
+                "type": "SINGLE_BANK",
+                "status": req_status_lower,
+                "msg": message,
+                "created": created_at_root,
+                "bank": bank
             })
+        else:
+            summ_files = [f for f in files if f.get("documentType") == "SUMMARIZED_BSA"]
+            bsa_files = [f for f in files if f.get("documentType") == "BANK"]
 
-        # ---- File Type Analysis (request level) ----
-        bsa_files = [f for f in files if f.get("documentType") == "BANK"]
-        summ_files = [f for f in files if f.get("documentType") == "SUMMARIZED_BSA"]
+            # 1. Processing the BSA_FILES (the actual bank statements)
+            for f in bsa_files:
+                f_status = str(f.get("fileStatus") or "").strip().lower()
+                if not f_status: f_status = req_status_lower
+                f_msg = str(f.get("statusMessage") or f.get("fileStatus") or message)
+                
+                items_to_process.append({
+                    "type": "SINGLE_BANK", 
+                    "status": f_status,
+                    "msg": f_msg,
+                    "created": f.get("createdAt") or created_at_root,
+                    "bank": bank
+                })
 
-        if summ_files:
-            file_type_analysis["summarized_bsa_requests"] += 1
-        elif bsa_files:
-            file_type_analysis["bank_requests"] += 1
+            # 2. Processing the SUMMARIZED_BSA file
+            for f in summ_files:
+                f_status = str(f.get("fileStatus") or "").strip().lower()
+                if not f_status: f_status = req_status_lower
+                f_msg = str(f.get("statusMessage") or message)
+                items_to_process.append({
+                    "type": "SUMM_BSA",
+                    "status": f_status,
+                    "msg": f_msg,
+                    "created": f.get("createdAt") or created_at_root,
+                    "bank": bank
+                })
 
-        # ---- Time Pattern (IST offset +5:30) ----
-        created_at = row.get("createdAt") or row.get("created_at")
-        if created_at:
-            try:
-                dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                ist_hour = (dt.hour + 5) % 24 + (1 if dt.minute >= 30 else 0)
-                ist_hour = ist_hour % 24
-                hourly_pattern[ist_hour] += 1
+        for item in items_to_process:
+            status_lower = item["status"]
+            msg_lower = item["msg"].lower()
+            
+            is_completed = (
+                status_lower == "completed" or (status_lower == "success")
+                or (status_lower not in {"failed", "submitted", "received", "processing"}
+                    and msg_lower == "success")
+            )
+            is_failed = (status_lower == "failed" or "fail" in status_lower)
+            is_submitted = status_lower in {"submitted", "received", "processing"}
 
-                # Day-wise breakdown
-                ist_date = _utc_to_ist_date(created_at)
-                if ist_date:
-                    day_wise[ist_date]["total"] += 1
-                    if is_completed:
-                        day_wise[ist_date]["completed"] += 1
-                    elif is_failed:
-                        day_wise[ist_date]["failed"] += 1
-                    else:
-                        day_wise[ist_date]["submitted"] += 1
-            except Exception:
-                pass
+            # ---- System Health ----
+            total += 1
+            if is_completed:
+                completed += 1
+            elif is_failed:
+                failed += 1
+            else:
+                submitted += 1
+
+            # ---- File Type Analysis ----
+            if item["type"] == "SUMM_BSA":
+                file_type_analysis["summarized_bsa_requests"] += 1
+            elif item["type"] == "BANKS_IN_SUMM":
+                file_type_analysis["banks_in_summarized_bsa"] += 1
+            elif item["type"] == "SINGLE_BANK":
+                file_type_analysis["bank_requests"] += 1
+
+            # ---- Bank Stats ----
+            valid_bank = item["bank"] and item["bank"].lower() not in {"null", "none"}
+            if valid_bank:
+                b_name = item["bank"]
+                bank_stats[b_name]["total"] += 1
+                if is_completed:
+                    bank_stats[b_name]["success"] += 1
+                elif is_failed:
+                    bank_stats[b_name]["failed"] += 1
+
+            # ---- Failure Intelligence ----
+            if is_failed:
+                reason = item["msg"] or "Unknown"
+                if reason.lower() in {"failed", "success", "fail", ""}:
+                    reason = "Unknown Error"
+                failure_reasons[str(reason)] += 1
+                
+                failed_records.append({
+                    "tracking_id": tracking_id,
+                    "bank_name": item["bank"] or "N/A",
+                    "reason": str(reason),
+                    "timestamp": _utc_to_ist_str(item["created"]),
+                })
+
+            # ---- Time Pattern (IST offset +5:30) ----
+            created_at = item["created"]
+            if created_at:
+                try:
+                    dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    ist_hour = (dt.hour + 5) % 24 + (1 if dt.minute >= 30 else 0)
+                    ist_hour = ist_hour % 24
+                    hourly_pattern[ist_hour] += 1
+
+                    # Day-wise breakdown
+                    ist_date = _utc_to_ist_date(created_at)
+                    if ist_date:
+                        day_wise[ist_date]["total"] += 1
+                        if is_completed:
+                            day_wise[ist_date]["completed"] += 1
+                        elif is_failed:
+                            day_wise[ist_date]["failed"] += 1
+                        else:
+                            day_wise[ist_date]["submitted"] += 1
+                except Exception:
+                    pass
 
     # ---- System Health Summary ----
     system_health = {
